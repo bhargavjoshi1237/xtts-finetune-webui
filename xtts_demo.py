@@ -220,7 +220,9 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
+    port = args.port  # Default port from argument
+    local_rank = int(os.environ.get("LOCAL_RANK", "0")) # Get LOCAL_RANK, default to 0 if not set
+    port += local_rank  # Offset port by local rank
     with gr.Blocks(title=os.environ.get("APP_NAME", "Gradio")) as demo:
         with gr.Tab("1 - Data processing"):
             out_path = gr.Textbox(
@@ -759,7 +761,7 @@ if __name__ == "__main__":
     demo.launch(
         share=args.share,
         debug=False,
-        server_port=args.port,
+        server_port=port, # Use the dynamically assigned port
         # inweb=True,
         # server_name="localhost"
     )
