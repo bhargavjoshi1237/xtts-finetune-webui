@@ -1,3 +1,4 @@
+
 import logging
 import os
 import gc
@@ -12,7 +13,8 @@ from TTS.utils.manage import ModelManager
 import shutil
 
 
-def train_gpt(custom_model,version, language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv, output_path, max_audio_length=255995):
+def train_gpt(custom_model, version, language, num_epochs, batch_size, grad_acumm, train_csv, eval_csv, output_path, max_audio_length=255995,
+              rank=0, world_size=1, local_rank=0, distributed_backend='nccl'): # Modified function signature
     #  Logging parameters
     RUN_NAME = "GPT_XTTS_FT"
     PROJECT_NAME = "XTTS_trainer"
@@ -25,7 +27,7 @@ def train_gpt(custom_model,version, language, num_epochs, batch_size, grad_acumm
     OUT_PATH = os.path.join(output_path, "run", "training")
 
     # Training Parameters
-    OPTIMIZER_WD_ONLY_ON_WEIGHTS = True  # for multi-gpu training please make it False
+    OPTIMIZER_WD_ONLY_ON_WEIGHTS = False  # for multi-gpu training please make it False
     START_WITH_EVAL = False  # if True it will star with evaluation
     BATCH_SIZE = batch_size  # set here the batch size
     GRAD_ACUMM_STEPS = grad_acumm  # set here the grad accumulation steps
@@ -179,6 +181,8 @@ def train_gpt(custom_model,version, language, num_epochs, batch_size, grad_acumm
         eval_split=True,
         eval_split_max_size=config.eval_split_max_size,
         eval_split_size=config.eval_split_size,
+        rank=rank, # Pass rank for distributed data loading
+        num_gpus=world_size # Pass world_size (number of GPUs)
     )
 
     # init the trainer and 🚀
@@ -188,6 +192,10 @@ def train_gpt(custom_model,version, language, num_epochs, batch_size, grad_acumm
             skip_train_epoch=False,
             start_with_eval=START_WITH_EVAL,
             grad_accum_steps=GRAD_ACUMM_STEPS,
+            rank=rank,  # Pass rank
+            world_size=world_size, # Pass world_size
+            local_rank=local_rank, # Pass local_rank
+            distributed_backend=distributed_backend # Pass distributed_backend
         ),
         config,
         output_path=OUT_PATH,
@@ -203,13 +211,13 @@ def train_gpt(custom_model,version, language, num_epochs, batch_size, grad_acumm
     speaker_ref = train_samples[longest_text_idx]["audio_file"]
 
     trainer_out_path = trainer.output_path
-    
+
     # close file handlers and remove them from the logger
     for handler in logging.getLogger('trainer').handlers:
         if isinstance(handler, logging.FileHandler):
             handler.close()
             logging.getLogger('trainer').removeHandler(handler)
-    
+
     # now you should be able to delete the log file
     log_file = os.path.join(trainer.output_path, f"trainer_{trainer.args.rank}_log.txt")
     os.remove(log_file)
